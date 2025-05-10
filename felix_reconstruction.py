@@ -49,33 +49,48 @@ def vis_feature_lines(feature_lines):
     plt.show()
 
 # --- Main loading and visualizing ---
-root = 'dataset/reconstructions'
+import os
+import json
+import random
+
+root = 'dataset/small'
 
 for folder_name in os.listdir(root):
     subfolder = os.path.join(root, folder_name)
     json_path = os.path.join(subfolder, 'batches_results_bootstrapped.json')
+    output_path = os.path.join(subfolder, 'perturbed_all_lines.json')
 
-    feature_lines = []
-    if os.path.isfile(json_path):
-        with open(json_path) as f:
-            data = json.load(f)
-            for entry in data:
-                proxies = entry.get("final_proxies", [])
-                final_corrs = entry.get("final_correspondences", [])
+    output_lines = []
 
-                # Collect all stroke IDs that appear in correspondences
-                corr_ids = set()
-                for c in final_corrs:
-                    corr_ids.add(c.get("stroke_id_0"))
-                    corr_ids.add(c.get("stroke_id_1"))
-
-                for i, stroke in enumerate(proxies):
-                    if len(stroke) >= 2:
-                        opacity = random.uniform(0.6, 0.9) if i in corr_ids else random.uniform(0.2, 0.4)
-                        feature_lines.append({"geometry": stroke, "opacity": opacity})
-
-    if len(feature_lines) > 200 or len(feature_lines) < 100:
+    if not os.path.isfile(json_path):
         continue
 
-    print("folder_name", folder_name)
-    vis_feature_lines(feature_lines)
+    with open(json_path) as f:
+        data = json.load(f)
+
+        for entry in data:
+            # 1. Fixed strokes → feature lines with higher opacity
+            for stroke in entry.get("fixed_strokes", []):
+                if len(stroke) >= 2:
+                    output_lines.append({
+                        "type": "feature_line",
+                        "feature_id": 0,
+                        "geometry": stroke,
+                        "opacity": random.uniform(0.2, 0.4)
+                    })
+
+            # 2. Final proxies → construction lines with lower opacity
+            for stroke in entry.get("final_proxies", []):
+                if len(stroke) >= 2:
+                    output_lines.append({
+                        "type": "construction_line",
+                        "feature_id": 0,
+                        "geometry": stroke,
+                        "opacity": random.uniform(0.05, 0.1)
+                    })
+
+    # vis_feature_lines(output_lines)
+    if output_lines:
+        with open(output_path, 'w') as out_f:
+            json.dump(output_lines, out_f, indent=2)
+        print(f"Saved {len(output_lines)} lines with opacity to {output_path}")
